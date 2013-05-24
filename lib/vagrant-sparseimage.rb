@@ -69,8 +69,9 @@ module SparseImage
 		end
 
 		def call(env)
-			pp env
-			env[:machine].config.sparseimage.to_hash[:images].each do |options|
+			puts "images:"
+			puts Config.images
+			Config.images.each do |options|
 				if File.exists?("#{options[:image_filename]}.#{options[:image_type]}")
 					env[:machine].ui.info "Found sparse disk image: #{options[:image_filename]}.#{options[:image_type]}"
 				else
@@ -85,6 +86,7 @@ module SparseImage
 					system(command)
 					env[:machine].ui.info "... done!"
 				end
+
 				env[:machine].config.env[:machine].share_folder(opts[:volume_name], opts[:vm_mountpoint],
 						"#{env[:root_path]}/#{options[:volume_name]}", :nfs => options[:nfs_options])
 			end
@@ -99,7 +101,7 @@ module SparseImage
 			@env = env
 		end
 		def call(env)
-			env[:machine].config.sparseimage.images.each do |options|
+			Config.images.each do |options|
 				if options[:auto_unmount]
 					env[:machine].ui.info "Unmounting disk image #{options[:image_filename]}.#{options[:image_type]} ..."
 					system("hdiutil detach -quiet ./#{options[:volume_name]}")
@@ -116,7 +118,7 @@ module SparseImage
 			@env = env
 		end
 		def call(env)
-			env[:machine].config.sparseimage.images.each do |options|
+			Config.images.each do |options|
 				env[:machine].ui.info "Unmounting disk image #{options[:image_filename]}.#{options[:image_type]} ..."
 				system("hdiutil detach -quiet ./#{options[:volume_name]}")
 				env[:machine].ui.info "... done!"
@@ -127,6 +129,11 @@ module SparseImage
 
 	class Config < Vagrant.plugin("2", :config)
 		# Singleton.
+		class << self
+			def images
+				@@images
+			end
+		end
 		@@images = []
 		def add_image(&block)
 			image = ImageConfig.new
