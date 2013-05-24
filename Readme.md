@@ -1,27 +1,17 @@
 # vagrant-sparseimage
 
-*vagrant-sparseimage* is a [Vagrant](http://vagrantup.com) plugin which automatically creates and mounts a sparseimage for the guest system to share. This allows alternative filesystems to be used between the host and the guest (eg. journaled, case sensitive). The image is browasable from Finder and completely configurable. The image can be auto-unmounted when the guest is halted or left mounted for manual control. The image is also destroyed if you choose when the guest is destroyed.
+`vagrant-sparseimage` is a [Vagrant](http://vagrantup.com) plugin which automatically creates and mounts a sparseimage for the guest system to share. This allows alternative filesystems to be used between the host and the guest (eg. journaled, case sensitive).
 
-## Building
+The image can be browser from OSX Finder and is completely configurable. It can be unmounted automatically when the guest is halted, or left mounted for other uses. When the Vagrant guest is destroyed, the image can optionally be destroyed too.
 
-To build the gem:
+## Dependencies
 
-If you installed vagrant that way, you need to use vagrant's gem wrapper:
-
-```bash
-$ vagrant gem build vagrant-sparseimage.gemspec
-```
-
-If you installed vagrant using RubyGems, use:
-
-```bash
-$ gem build vagrant-sparseimage.gemspec
-```
+Only runs in OSX. Requires vagrant 0.9.4 or later (including 1.0). Does not currently support Vagrant 1.1+ - the plugin API changed.
 
 ## Installation
 
-Requires vagrant 0.9.4 or later (including 1.0)
-Since vagrant v1.0.0 the preferred installation method for vagrant is using the provided packages or installers. 
+Since Vagrant v1.0.0, the preferred installation method is using prebuilt packages or installers.
+
 If you installed vagrant that way, you need to use vagrant's gem wrapper:
 
 ```bash
@@ -32,6 +22,24 @@ If you installed vagrant using RubyGems, use:
 
 ```bash
 $ gem install vagrant-sparseimage
+```
+
+## Configuration
+
+TODO - document required attrs.
+
+## Building
+
+If you installed vagrant using RubyGems, use:
+
+```bash
+$ gem build vagrant-sparseimage.gemspec
+```
+
+If you installed Vagrant with a prebuilt package or installer, you need to use Vagrant's gem wrapper:
+
+```bash
+$ vagrant gem build vagrant-sparseimage.gemspec
 ```
 
 ## Configuration / Usage
@@ -74,11 +82,11 @@ end
 ### Config options
 
 * `enabled` : Turns on sparseimage support.
-* `volume_name` : Set the volume name of the image to be mounted.
-* `vm_mountpoint` : The location in the guest the image will be mounted.
-* `image_filename` : The image filename.
-* `image_size` : The maximum image file system size.
-* `image_fs` : The image file's file system.
-* `auto_unmount` : Disable the auto unmounting of the image file after the guest is halted.
+* `volume_name`: Set the volume name of the image to be mounted.
+* `vm_mountpoint`: The location in the guest the image will be mounted.
+* `image_filename`: The image filename.
+* `image_size`: The maximum image file system size.
+* `image_fs`: The image file's file system.
+* `auto_unmount`: Disable the auto unmounting of the image file after the guest is halted.
 
 

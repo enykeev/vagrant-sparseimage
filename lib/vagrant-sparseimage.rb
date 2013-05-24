@@ -1,12 +1,15 @@
-require 'vagrant'
+require 'pathname'
+require 'vagrant-sparseimage/plugin'
 
-require 'vagrant-sparseimage/config'
-require 'vagrant-sparseimage/mountsparseimage'
-require 'vagrant-sparseimage/unmountsparseimage'
-require 'vagrant-sparseimage/destroysparseimage'
+module VagrantPlugins
+	module SparseImage
+		lib_path = Pathname.new(File.expand_path('../vagrant-sparseimage', __FILE__))
 
-Vagrant.config_keys.register(:sparseimage) { VagrantSparseimage::Config }
+		autoload :Action, lib_path.join("action")
+		def self.source_root
+			@source_root ||= Pathname.new(File.expand_path('../../', __FILE__))
+		end
 
-Vagrant.actions[:start].insert_after(Vagrant::Action::VM::ForwardPorts, VagrantSparseimage::MountSparseImage)
-Vagrant.actions[:halt].insert_after(Vagrant::Action::VM::Halt, VagrantSparseimage::UnmountSparseImage)
-Vagrant.actions[:destroy].insert_after(Vagrant::Action::VM::DestroyUnusedNetworkInterfaces, VagrantSparseimage::DestroySparseImage)
+	end
+end
+
