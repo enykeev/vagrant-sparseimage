@@ -1,10 +1,9 @@
-# -*- encoding: utf-8 -*-
 $:.unshift File.expand_path("../lib", __FILE__)
-require 'vagrant-sparseimage/version'
+require 'vagrant-sparseimage.rb'
 
 Gem::Specification.new do |s|
 	s.name			= 'vagrant-sparseimage'
-	s.version		= VagrantPlugins::SparseImage::VERSION
+	s.version		= SparseImage::VERSION
 	s.platform		= Gem::Platform::RUBY
 	s.authors		= ['Alan Garfield', 'Daniel Bryan']
 	s.license		= 'MIT'
@@ -19,6 +18,6 @@ Gem::Specification.new do |s|
 	s.add_development_dependency 'bundler', '>= 1.2.0'
 	s.add_development_dependency 'vagrant', '>= 1.2'
 
-	s.files = Dir['lib/**/*.*']
+	s.files = ['lib/vagrant-sparseimage.rb']
 	s.require_paths = ['lib']
 end
