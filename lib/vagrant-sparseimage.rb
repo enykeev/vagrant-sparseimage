@@ -152,10 +152,10 @@ module SparseImage
 
 		action_hook(self::ALL_ACTIONS) do |hook|
 			hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForwardPorts, Mount)
-			#hook.after(Vagrant::Action::Builtin::GracefulHalt, Unmount)
-			#hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForcedHalt, Unmount)
+			hook.after(Vagrant::Action::Builtin::GracefulHalt, Unmount)
+			hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForcedHalt, Unmount)
 			# TODO - confirm that Destroy is not called when confirm is declined
-			#hook.after(Vagrant::Action::Builtin::DestroyConfirm, Destroy)
+			hook.after(Vagrant::Action::Builtin::DestroyConfirm, Destroy)
 		end
 	end
 end
