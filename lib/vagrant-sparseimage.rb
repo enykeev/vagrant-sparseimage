@@ -69,8 +69,9 @@ module SparseImage
 		end
 
 		def call(env)
-			puts "images:"
-			puts Config.images
+			pp env
+			@app.call(env)
+			return
 			Config.images.each do |options|
 				if File.exists?("#{options[:image_filename]}.#{options[:image_type]}")
 					env[:machine].ui.info "Found sparse disk image: #{options[:image_filename]}.#{options[:image_type]}"
@@ -82,7 +83,6 @@ module SparseImage
 						   "-fs #{options[:image_fs]} " +
 						   "-volname #{options[:volume_name]} " +
 						   "#{opts[:image_file]}"
-					puts command
 					system(command)
 					env[:machine].ui.info "... done!"
 				end
@@ -101,6 +101,10 @@ module SparseImage
 			@env = env
 		end
 		def call(env)
+			# TODO - read from the instantiated version not the global
+			@app.call(env)
+			return
+
 			Config.images.each do |options|
 				if options[:auto_unmount]
 					env[:machine].ui.info "Unmounting disk image #{options[:image_filename]}.#{options[:image_type]} ..."
@@ -118,6 +122,10 @@ module SparseImage
 			@env = env
 		end
 		def call(env)
+			# TODO - read from the instantiated version not the global
+			@app.call(env)
+			return
+
 			Config.images.each do |options|
 				env[:machine].ui.info "Unmounting disk image #{options[:image_filename]}.#{options[:image_type]} ..."
 				system("hdiutil detach -quiet ./#{options[:volume_name]}")
@@ -128,20 +136,32 @@ module SparseImage
 	end
 
 	class Config < Vagrant.plugin("2", :config)
-		# Singleton.
-		class << self
-			def images
-				@@images
-			end
+		# Singleton
+		attr_accessor :images
+
+		def initialise
+			puts "Config got initialised."
+			super
 		end
-		@@images = []
-		def add_image(&block)
+
+		def add_image
+			if @images.nil?
+				@images = []
+			end
+			if not block_given?
+				# TODO - improve this
+				raise 'Must take a block.'
+			end
 			image = ImageConfig.new
 			yield image
-			@@images.push(image)
+			@images.push(image)
 		end
+
+		def finalise!
+		end
+
 		def to_hash
-			{ :images => @@images }
+			return { :images => @images }
 		end
 	end
 
@@ -153,16 +173,20 @@ module SparseImage
 		name "vagrant sparse image support"
 		description "A vagrant plugin to create a mount sparse images into the guest VM"
 
-		config("sparseimage") do
-			Config
+		config :sparseimage do
+			# Yield a config object to the vagrant file.
+			# Vagrant should handle persisting the state of this object.
+			Config.new
 		end
 
 		action_hook(self::ALL_ACTIONS) do |hook|
-			hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForwardPorts, Mount)
+			hook.after(VagrantPlugins::ProviderVirtualBox::Action::Boot, Mount)
 			hook.after(Vagrant::Action::Builtin::GracefulHalt, Unmount)
-			hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForcedHalt, Unmount)
-			# TODO - confirm that Destroy is not called when confirm is declined
 			hook.after(Vagrant::Action::Builtin::DestroyConfirm, Destroy)
+
+			#hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForwardPorts, Mount)
+			#hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForcedHalt, Unmount)
+			# TODO - confirm that Destroy is not called when confirm is declined
 		end
 	end
 end
