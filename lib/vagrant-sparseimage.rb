@@ -3,7 +3,7 @@ require 'pp'
 begin
 	require 'vagrant'
 rescue LoadError
-	raise 'The Vagrant VBGuest plugin must be run within Vagrant.'
+	raise 'The Vagrant SparseImage plugin must be run within Vagrant.'
 end
 
 module SparseImage
@@ -50,14 +50,14 @@ module SparseImage
 
 		def to_hash
 			{
-				:volume_name 		=> @volume_name,
-				:vm_mountpoint		=> @vm_mountpoint,
-				:image_filename		=> @image_filename,
-				:image_size			=> @image_size,
-				:image_fs			=> @image_fs,
-				:nfs_options		=> @nfs_options,
-				:image_type			=> @image_type,
-				:auto_unmount		=> @auto_unmount
+				:volume_name     => @volume_name,
+				:vm_mountpoint   => @vm_mountpoint,
+				:image_filename  => @image_filename,
+				:image_size      => @image_size,
+				:image_fs        => @image_fs,
+				:nfs_options     => @nfs_options,
+				:image_type      => @image_type,
+				:auto_unmount    => @auto_unmount
 			}
 		end
 	end
@@ -79,7 +79,7 @@ module SparseImage
 					env[:machine].ui.info "Creating #{options[:image_size]}GB sparse disk image with " +
 						"name #{options[:image_filename]}.#{options[:image_type]} ..."
 					command = "hdiutil create -type #{options[:image_type]} " +
-						   "-size #{options[:image_sizek]}g " +
+						   "-size #{options[:image_size]}g " +
 						   "-fs #{options[:image_fs]} " +
 						   "-volname #{options[:volume_name]} " +
 						   "#{opts[:image_file]}"
@@ -130,6 +130,11 @@ module SparseImage
 				env[:machine].ui.info "Unmounting disk image #{options[:image_filename]}.#{options[:image_type]} ..."
 				system("hdiutil detach -quiet ./#{options[:volume_name]}")
 				env[:machine].ui.info "... done!"
+				
+				# TODO - Missing the removal of the disk image
+				# although the name of the file I'm not so sure about now
+				#system("rm -rf #{opts[:image_file]}")
+				
 			end
 			@app.call(env)
 		end
