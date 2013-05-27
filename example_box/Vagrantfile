@@ -2,12 +2,15 @@ Vagrant.configure("2") do |config|
 	config.vm.hostname = 'sparseimage-test'
 	config.vm.box = 'precise64nfs_clean'
 	config.vm.box_url = 'https://s3-ap-southeast-2.amazonaws.com/learnosity-vagrant/precise64nfs_clean.box'
+    config.vm.network :private_network, ip: '172.16.42.10'
+
 	config.sparseimage.add_image do |image|
-		puts "Config for a single image."
-		image.vm_mountpoint = 'sparseimage_test'
-		image.image_size = 512
-		image.image_filename = 'sparseimage_test'
+		image.image_folder = './vagrant/image'
 		image.volume_name = 'sparseimage_test'
-		image.image_type = 'SPARSE'
+		image.image_type = 'SPARSEIMAGE'
+		image.image_fs = 'JHFS+'
+		image.vm_mountpoint = '/srv/sparseimage_test'
+		image.image_size = 512
+		image.auto_unmount = false
 	end
 end

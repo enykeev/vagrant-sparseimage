@@ -1,3 +1,8 @@
+begin
+	FileUtils
+rescue NameError
+	require 'FileUtils'
+end
 require 'pp'
 
 begin
@@ -13,52 +18,53 @@ module SparseImage
 		# Configuration for a single sparse image
 		# Not exposed to vagrant.
 
-		attr_accessor :volume_name, :vm_mountpoint, :image_filename, :image_size, :image_fs, :image_type, :nfs_options, :auto_unmount
+		attr_accessor :vm_mountpoint, :image_size, :image_fs, :image_type, :volume_name, :image_folder, :auto_unmount
+		
+		@@required = [
+			:volume_name,
+			:image_type,
+			:image_fs,
+			:vm_mountpoint,
+			:image_size,
+			:image_folder ]
 
-		def auto_unmount; 	@auto_unmount.nil? 	? true 	: @auto_unmount end
-		def image_type; 	@image_type.nil? 	? false	: @image_type end
+		@@valid_image_types = ["SPARSEIMAGE", "SPARSEBUNDLE"]
 
-		def volume_name
-			return nil if !@volume_name || @volume_name == :auto
-			@volume_name
+		def validate(machine)
+			errors = {}
+			# Check for the required config keys
+			@@required.each do |key|
+				if not to_hash[key] or (to_hash[key].is_a? String  and to_hash[key].length == 0)
+					errors[key] = ["Must be present."]
+				end
+			end
+
+			# Validate image type
+			if not @@valid_image_types.include?(@image_type)
+				errors[key] = ["Invalid value: only supports #{@@valid_image_types.join(',')}"]
+			end
+
+			# Size must be an int
+			if @image_size and not @image_size.is_a? Fixnum
+				errors[key] = ["Must be a number."]
+			end
+			{}
+			#errors
 		end
 
-		def vm_mountpoint
-			return nil if !@vm_mountpoint || @vm_mountpoint == :auto
-			@vm_mountpoint
-		end
-
-		def image_filename
-			return nil if !@image_filename || @image_filename == :auto
-			@image_filename
-		end
-
-		def image_size
-			return nil if !@image_size || @image_size == :auto
-			@image_size
-		end
-
-		def image_fs
-			return nil if !@image_fs || @image_fs == :auto
-			@image_fs
-		end
-
-		def nfs_options
-			return nil if !@nfs_options || @nfs_options == :auto
-			@nfs_options
+		def finalize!
+			if @auto_unmount.nil?
+				@auto_unmount = true
+			end
 		end
 
 		def to_hash
-			{
-				:volume_name     => @volume_name,
-				:vm_mountpoint   => @vm_mountpoint,
+			{	:vm_mountpoint   => @vm_mountpoint,
 				:image_filename  => @image_filename,
 				:image_size      => @image_size,
 				:image_fs        => @image_fs,
-				:nfs_options     => @nfs_options,
 				:image_type      => @image_type,
-				:auto_unmount    => @auto_unmount
-			}
+				:image_folder	 => @image_folder }
 		end
 	end
 
@@ -69,26 +75,38 @@ module SparseImage
 		end
 
 		def call(env)
-			pp env
-			@app.call(env)
-			return
-			Config.images.each do |options|
-				if File.exists?("#{options[:image_filename]}.#{options[:image_type]}")
-					env[:machine].ui.info "Found sparse disk image: #{options[:image_filename]}.#{options[:image_type]}"
+			vm = env[:machine]
+			vm.config.sparseimage.to_hash[:images].each do |opts|
+				# Derive the full image filename and volume mount path (for the host)
+				full_image_filename = "#{opts.image_folder}/#{opts.volume_name}.#{opts.image_type}"
+				full_volume_path = "#{opts.image_folder}/#{opts.volume_name}"
+
+				# Does the image need to be created?
+				if File.exists? full_image_filename
+					vm.ui.info "Found sparse disk image: #{full_image_filename}"
 				else
-					env[:machine].ui.info "Creating #{options[:image_size]}GB sparse disk image with " +
-						"name #{options[:image_filename]}.#{options[:image_type]} ..."
-					command = "hdiutil create -type #{options[:image_type]} " +
-						   "-size #{options[:image_size]}g " +
-						   "-fs #{options[:image_fs]} " +
-						   "-volname #{options[:volume_name]} " +
-						   "#{opts[:image_file]}"
-					system(command)
-					env[:machine].ui.info "... done!"
+					# Create the directory if it does not exist
+					FileUtil.mkdir_p opts.image_folder if not File.exists? opts.image_folder
+
+					# hdiutil is finnicky with image type
+					type = opts.image_type == 'SPARSEIMAGE' ? 'SPARSE' : opts.image_type
+					vm.ui.info "Creating #{opts.image_size}MB sparse disk image: #{full_image_filename}"
+					system("hdiutil create -type '#{type}' " +
+						   "-size '#{opts.image_size}m' " +
+						   "-fs '#{opts.image_fs}' " +
+						   "-volname '#{opts.volume_name}' " +
+						   "'#{full_image_filename}'")
 				end
 
-				env[:machine].config.env[:machine].share_folder(opts[:volume_name], opts[:vm_mountpoint],
-						"#{env[:root_path]}/#{options[:volume_name]}", :nfs => options[:nfs_options])
+				# Mount the image in the host
+				vm.ui.info("Mounting disk image in the host: #{full_image_filename}")
+				system("hdiutil attach -mountroot '#{opts.image_folder}' '#{full_image_filename}'")
+
+				env[:machine].config.vm.synced_folders[opts.volume_name] = {
+					:hostpath => full_volume_path,
+					:guestpath => opts.vm_mountpoint,
+					:nfs => true
+				}
 			end
 
 			@app.call(env)
@@ -96,20 +114,20 @@ module SparseImage
 	end
 
 	class Unmount
+		# Unmount the shared drive from the host machine
+		# Fails silently if the drive was not mounted
+
 		def initialize(app, env)
 			@app = app
 			@env = env
 		end
 		def call(env)
-			# TODO - read from the instantiated version not the global
-			@app.call(env)
-			return
-
-			Config.images.each do |options|
-				if options[:auto_unmount]
-					env[:machine].ui.info "Unmounting disk image #{options[:image_filename]}.#{options[:image_type]} ..."
-					system("hdiutil detach -quiet ./#{options[:volume_name]}")
-					env[:machine].ui.info "... done!"
+			vm = env[:machine]
+			vm.config.sparseimage.to_hash[:images].each do |options|
+				if options.auto_unmount
+					full_volume_path = "#{options.image_folder}/#{options.volume_name}"
+					vm.ui.info("Unmounting disk image from host: #{full_volume_path}")
+					system("hdiutil detach -quiet '#{full_volume_path}'")
 				end
 			end
 			@app.call(env)
@@ -117,56 +135,76 @@ module SparseImage
 	end
 
 	class Destroy
+		# Unmount the shared drive from the host machine and delete it.
+		# Confirm with the user first.
+
 		def initialize(app, env)
 			@app = app
 			@env = env
 		end
 		def call(env)
-			# TODO - read from the instantiated version not the global
-			@app.call(env)
-			return
+			vm = env[:machine]
+			vm.config.sparseimage.to_hash[:images].each do |options|
 
-			Config.images.each do |options|
-				env[:machine].ui.info "Unmounting disk image #{options[:image_filename]}.#{options[:image_type]} ..."
-				system("hdiutil detach -quiet ./#{options[:volume_name]}")
-				env[:machine].ui.info "... done!"
-				
-				# TODO - Missing the removal of the disk image
-				# although the name of the file I'm not so sure about now
-				#system("rm -rf #{opts[:image_file]}")
-				
+				full_image_filename = "#{options.image_folder}/#{options.volume_name}.#{options.image_type}"
+				full_volume_path = "#{options.image_folder}/#{options.volume_name}"
+
+				# First unmount the volume
+				vm.ui.info("Unmounting disk image from host: #{full_volume_path}")
+				system("hdiutil detach -quiet '#{full_volume_path}'")
+
+				# Confirm destruction of the sparse image
+				choice = vm.ui.ask("Do you want to delete the sparse image at #{full_image_filename}? [Y/N] ")
+				if choice.upcase == 'Y'
+					vm.ui.info("Destroying disk image at #{full_image_filename}")
+					File.delete(full_image_filename)
+				end
 			end
+
 			@app.call(env)
 		end
 	end
 
 	class Config < Vagrant.plugin("2", :config)
 		# Singleton
-		attr_accessor :images
-
-		def initialise
-			puts "Config got initialised."
-			super
+		@@images = []
+		class << self
+			attr_accessor :images
 		end
 
 		def add_image
-			if @images.nil?
-				@images = []
-			end
 			if not block_given?
-				# TODO - improve this
-				raise 'Must take a block.'
+				raise 'add_image must be given a block.'
 			end
 			image = ImageConfig.new
 			yield image
-			@images.push(image)
+			@@images.push(image)
 		end
 
+
 		def finalise!
+			@@images.each do |image|
+				image.finalise!
+			end
+		end
+
+		def validate(machine)
+			errors = {}
+
+			# Validate each of the image configs in turn
+			@@images.each_with_index do |image, i|
+				image_errors = image.validate(machine)
+				if image_errors.length > 0
+					errors[i] = image_errors
+				end
+			end
+
+			errors
 		end
 
 		def to_hash
-			return { :images => @images }
+			# TODO - can it be done without this?
+			return { :images => @@images }
 		end
 	end
 
@@ -178,18 +216,19 @@ module SparseImage
 		name "vagrant sparse image support"
 		description "A vagrant plugin to create a mount sparse images into the guest VM"
 
-		config :sparseimage do
+		config(:sparseimage) do
 			# Yield a config object to the vagrant file.
 			# Vagrant should handle persisting the state of this object.
-			Config.new
+			#Config
+			Config
 		end
 
 		action_hook(self::ALL_ACTIONS) do |hook|
-			hook.after(VagrantPlugins::ProviderVirtualBox::Action::Boot, Mount)
+			#hook.after(VagrantPlugins::ProviderVirtualBox::Action::Boot, Mount)
+			hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForwardPorts, Mount)
 			hook.after(Vagrant::Action::Builtin::GracefulHalt, Unmount)
 			hook.after(Vagrant::Action::Builtin::DestroyConfirm, Destroy)
 
-			#hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForwardPorts, Mount)
 			#hook.after(VagrantPlugins::ProviderVirtualBox::Action::ForcedHalt, Unmount)
 			# TODO - confirm that Destroy is not called when confirm is declined
 		end
